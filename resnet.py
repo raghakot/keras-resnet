@@ -85,7 +85,7 @@ def _shortcut(input, residual):
 
 
 # Builds a residual block with repeating bottleneck blocks.
-def residual_block(block_function, nb_filters, repetations, is_first_layer=False):
+def _residual_block(block_function, nb_filters, repetations, is_first_layer=False):
     def f(input):
         for i in range(repetations):
             init_subsample = (1, 1)
@@ -107,10 +107,10 @@ def resnet():
 
     # Build residual blocks..
     block_fn = _bottleneck
-    block1 = residual_block(block_fn, nb_filters=64, repetations=3, is_first_layer=True)(pool1)
-    block2 = residual_block(block_fn, nb_filters=128, repetations=4)(block1)
-    block3 = residual_block(block_fn, nb_filters=256, repetations=6)(block2)
-    block4 = residual_block(block_fn, nb_filters=512, repetations=3)(block3)
+    block1 = _residual_block(block_fn, nb_filters=64, repetations=3, is_first_layer=True)(pool1)
+    block2 = _residual_block(block_fn, nb_filters=128, repetations=4)(block1)
+    block3 = _residual_block(block_fn, nb_filters=256, repetations=6)(block2)
+    block4 = _residual_block(block_fn, nb_filters=512, repetations=3)(block3)
 
     # Classifier block
     pool2 = AveragePooling2D(pool_size=(7, 7), strides=(1, 1), border_mode="same")(block4)
@@ -144,3 +144,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
