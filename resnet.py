@@ -70,14 +70,14 @@ def _shortcut(input, residual):
     # Expand channels of shortcut to match residual.
     # Stride appropriately to match residual (width, height)
     # Should be int if network architecture is correctly configured.
-    stride_width = input._shape[2].value / residual._shape[2].value
-    stride_height = input._shape[3].value / residual._shape[3].value
-    equal_channels = residual._shape[1].value == input._shape[1].value
+    stride_width = input._keras_shape[2] / residual._keras_shape[2]
+    stride_height = input._keras_shape[3] / residual._keras_shape[3]
+    equal_channels = residual._keras_shape[1] == input._keras_shape[1]
 
     shortcut = input
     # 1 X 1 conv if shape is different. Else identity.
     if stride_width > 1 or stride_height > 1 or not equal_channels:
-        shortcut = Convolution2D(nb_filter=residual._shape[1].value, nb_row=1, nb_col=1,
+        shortcut = Convolution2D(nb_filter=residual._keras_shape[1], nb_row=1, nb_col=1,
                                  subsample=(stride_width, stride_height),
                                  init="he_normal", border_mode="valid")(input)
 
@@ -127,13 +127,14 @@ def main():
     model = resnet()
     duration = time.time() - start
     print "{} s to make model".format(duration)
+
     start = time.time()
     model.output
     duration = time.time() - start
     print "{} s to get output".format(duration)
+
     start = time.time()
     model.compile(loss="categorical_crossentropy", optimizer="sgd")
-    # model.compile(loss={"distance": "binary_crossentropy"}, optimizer="sgd")
     duration = time.time() - start
     print "{} s to get compile".format(duration)
 
