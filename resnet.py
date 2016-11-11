@@ -70,8 +70,8 @@ def _shortcut(input, residual):
     # Expand channels of shortcut to match residual.
     # Stride appropriately to match residual (width, height)
     # Should be int if network architecture is correctly configured.
-    stride_width = input._keras_shape[2] / residual._keras_shape[2]
-    stride_height = input._keras_shape[3] / residual._keras_shape[3]
+    stride_width = input._keras_shape[2] // residual._keras_shape[2]
+    stride_height = input._keras_shape[3] // residual._keras_shape[3]
     equal_channels = residual._keras_shape[1] == input._keras_shape[1]
 
     shortcut = input
@@ -122,21 +122,9 @@ def resnet():
 
 
 def main():
-    import time
-    start = time.time()
     model = resnet()
-    duration = time.time() - start
-    print "{} s to make model".format(duration)
-
-    start = time.time()
-    model.output
-    duration = time.time() - start
-    print "{} s to get output".format(duration)
-
-    start = time.time()
     model.compile(loss="categorical_crossentropy", optimizer="sgd")
-    duration = time.time() - start
-    print "{} s to get compile".format(duration)
+    model.summary()
 
     current_dir = os.path.dirname(os.path.realpath(__file__))
     model_path = os.path.join(current_dir, "resnet_50.png")
