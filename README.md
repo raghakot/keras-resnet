@@ -24,6 +24,5 @@ There are two key aspects to note here
  For remaining cases, input is directly merged with residual block as identity.
 
 ### Building ResNet
-Use [ResNetBuilder](https://github.com/raghakot/keras-resnet/blob/master/resnet.py#L97) builder methods to build various ResNets.
-You can also use the generic [build](https://github.com/raghakot/keras-resnet/blob/master/resnet.py#L99) method to setup your own architecture.
-
+- Use ResNetBuilder [build](https://github.com/raghakot/keras-resnet/blob/master/resnet.py#L135-L153) methods to build standard ResNet architectures with your own input shape. It will auto calculate paddings and final pooling layer filters for you.
+- Use the generic [build](https://github.com/raghakot/keras-resnet/blob/master/resnet.py#L99) method to setup your own architecture.
