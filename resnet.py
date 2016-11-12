@@ -1,5 +1,3 @@
-import os
-
 from keras.models import Model
 from keras.layers import (
     Input,
@@ -14,7 +12,6 @@ from keras.layers.convolutional import (
     AveragePooling2D
 )
 from keras.layers.normalization import BatchNormalization
-from keras.utils.visualize_util import plot
 
 
 # Helper to build a conv -> BN -> relu block
@@ -40,31 +37,6 @@ def _bn_relu_conv(nb_filter, nb_row, nb_col, subsample=(1, 1)):
     return f
 
 
-# Bottleneck architecture for > 34 layer resnet.
-# Follows improved proposed scheme in http://arxiv.org/pdf/1603.05027v2.pdf
-# Returns a final conv layer of nb_filters * 4
-def _bottleneck(nb_filters, init_subsample=(1, 1)):
-    def f(input):
-        conv_1_1 = _bn_relu_conv(nb_filters, 1, 1, subsample=init_subsample)(input)
-        conv_3_3 = _bn_relu_conv(nb_filters, 3, 3)(conv_1_1)
-        residual = _bn_relu_conv(nb_filters * 4, 1, 1)(conv_3_3)
-        return _shortcut(input, residual)
-
-    return f
-
-
-# Basic 3 X 3 convolution blocks.
-# Use for resnet with layers <= 34
-# Follows improved proposed scheme in http://arxiv.org/pdf/1603.05027v2.pdf
-def _basic_block(nb_filters, init_subsample=(1, 1)):
-    def f(input):
-        conv1 = _bn_relu_conv(nb_filters, 3, 3, subsample=init_subsample)(input)
-        residual = _bn_relu_conv(nb_filters, 3, 3)(conv1)
-        return _shortcut(input, residual)
-
-    return f
-
-
 # Adds a shortcut between input and residual block and merges them with "sum"
 def _shortcut(input, residual):
     # Expand channels of shortcut to match residual.
@@ -85,9 +57,9 @@ def _shortcut(input, residual):
 
 
 # Builds a residual block with repeating bottleneck blocks.
-def _residual_block(block_function, nb_filters, repetations, is_first_layer=False):
+def _residual_block(block_function, nb_filters, repetitions, is_first_layer=False):
     def f(input):
-        for i in range(repetations):
+        for i in range(repetitions):
             init_subsample = (1, 1)
             if i == 0 and not is_first_layer:
                 init_subsample = (2, 2)
@@ -97,38 +69,94 @@ def _residual_block(block_function, nb_filters, repetations, is_first_layer=Fals
     return f
 
 
-# http://arxiv.org/pdf/1512.03385v1.pdf
-# 50 Layer resnet
-def resnet():
-    input = Input(shape=(3, 224, 224))
+# Basic 3 X 3 convolution blocks.
+# Use for resnet with layers <= 34
+# Follows improved proposed scheme in http://arxiv.org/pdf/1603.05027v2.pdf
+def basic_block(nb_filters, init_subsample=(1, 1)):
+    def f(input):
+        conv1 = _bn_relu_conv(nb_filters, 3, 3, subsample=init_subsample)(input)
+        residual = _bn_relu_conv(nb_filters, 3, 3)(conv1)
+        return _shortcut(input, residual)
 
-    conv1 = _conv_bn_relu(nb_filter=64, nb_row=7, nb_col=7, subsample=(2, 2))(input)
-    pool1 = MaxPooling2D(pool_size=(3, 3), strides=(2, 2), border_mode="same")(conv1)
+    return f
 
-    # Build residual blocks..
-    block_fn = _bottleneck
-    block1 = _residual_block(block_fn, nb_filters=64, repetations=3, is_first_layer=True)(pool1)
-    block2 = _residual_block(block_fn, nb_filters=128, repetations=4)(block1)
-    block3 = _residual_block(block_fn, nb_filters=256, repetations=6)(block2)
-    block4 = _residual_block(block_fn, nb_filters=512, repetations=3)(block3)
 
-    # Classifier block
-    pool2 = AveragePooling2D(pool_size=(7, 7), strides=(1, 1))(block4)
-    flatten1 = Flatten()(pool2)
-    dense = Dense(output_dim=1000, init="he_normal", activation="softmax")(flatten1)
+# Bottleneck architecture for > 34 layer resnet.
+# Follows improved proposed scheme in http://arxiv.org/pdf/1603.05027v2.pdf
+# Returns a final conv layer of nb_filters * 4
+def bottleneck(nb_filters, init_subsample=(1, 1)):
+    def f(input):
+        conv_1_1 = _bn_relu_conv(nb_filters, 1, 1, subsample=init_subsample)(input)
+        conv_3_3 = _bn_relu_conv(nb_filters, 3, 3)(conv_1_1)
+        residual = _bn_relu_conv(nb_filters * 4, 1, 1)(conv_3_3)
+        return _shortcut(input, residual)
 
-    model = Model(input=input, output=dense)
-    return model
+    return f
+
+
+class ResNetBuilder(object):
+    @staticmethod
+    def build(input_shape, num_outputs, block_fn, repetitions):
+        """
+        Builds a custom ResNet like architecture.
+        :param input_shape: The input shape in the form (nb_channels, nb_rows, nb_cols)
+
+        :param num_outputs: The number of outputs at final softmax layer
+
+        :param block_fn: The block function to use. This is either :func:`basic_block` or :func:`bottleneck`.
+        The original paper used basic_block for layers < 50
+
+        :param repetitions: Number of repetitions of various block units.
+        At each block unit, the number of filters are doubled and the input size is halved
+
+        :return: The keras model.
+        """
+        if len(input_shape) != 3:
+            raise Exception("Input shape should be a tuple (nb_channels, nb_rows, nb_cols)")
+
+        input = Input(shape=input_shape)
+        conv1 = _conv_bn_relu(nb_filter=64, nb_row=7, nb_col=7, subsample=(2, 2))(input)
+        pool1 = MaxPooling2D(pool_size=(3, 3), strides=(2, 2), border_mode="same")(conv1)
+
+        block = pool1
+        nb_filters = 64
+        for i, r in enumerate(repetitions):
+            block = _residual_block(block_fn, nb_filters=nb_filters, repetitions=r, is_first_layer=i == 0)(block)
+            nb_filters *= 2
+
+        # Classifier block
+        pool2 = AveragePooling2D(pool_size=(block._keras_shape[2], block._keras_shape[3]), strides=(1, 1))(block)
+        flatten1 = Flatten()(pool2)
+        dense = Dense(output_dim=num_outputs, init="he_normal", activation="softmax")(flatten1)
+
+        model = Model(input=input, output=dense)
+        return model
+
+    @staticmethod
+    def build_resnet_18(input_shape, num_outputs):
+        return ResNetBuilder.build(input_shape, num_outputs, basic_block, [2, 2, 2, 2])
+
+    @staticmethod
+    def build_resnet_34(input_shape, num_outputs):
+        return ResNetBuilder.build(input_shape, num_outputs, basic_block, [3, 4, 6, 3])
+
+    @staticmethod
+    def build_resnet_50(input_shape, num_outputs):
+        return ResNetBuilder.build(input_shape, num_outputs, bottleneck, [3, 4, 6, 3])
+
+    @staticmethod
+    def build_resnet_101(input_shape, num_outputs):
+        return ResNetBuilder.build(input_shape, num_outputs, bottleneck, [3, 4, 23, 3])
+
+    @staticmethod
+    def build_resnet_152(input_shape, num_outputs):
+        return ResNetBuilder.build(input_shape, num_outputs, bottleneck, [3, 8, 36, 3])
 
 
 def main():
-    model = resnet()
+    model = ResNetBuilder.build_resnet_18((3, 224, 224), 1000)
     model.compile(loss="categorical_crossentropy", optimizer="sgd")
     model.summary()
-
-    current_dir = os.path.dirname(os.path.realpath(__file__))
-    model_path = os.path.join(current_dir, "resnet_50.png")
-    plot(model, to_file=model_path, show_shapes=True)
 
 
 if __name__ == '__main__':
