@@ -23,6 +23,6 @@ There are two key aspects to note here
  2. At the end of the first skip connection of a block, there is a disconnect in num_filters, width and height at the merge layer. This is addressed in [`_shortcut`](https://github.com/raghakot/keras-resnet/blob/master/resnet.py#L41) by using `conv 1X1` with an appropriate stride.
  For remaining cases, input is directly merged with residual block as identity.
 
-### Building ResNet
+### ResNetBuilder factory
 - Use ResNetBuilder [build](https://github.com/raghakot/keras-resnet/blob/master/resnet.py#L135-L153) methods to build standard ResNet architectures with your own input shape. It will auto calculate paddings and final pooling layer filters for you.
 - Use the generic [build](https://github.com/raghakot/keras-resnet/blob/master/resnet.py#L99) method to setup your own architecture.
