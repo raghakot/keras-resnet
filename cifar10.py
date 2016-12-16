@@ -29,7 +29,7 @@ print(X_test.shape[0], 'test samples')
 Y_train = np_utils.to_categorical(y_train, nb_classes)
 Y_test = np_utils.to_categorical(y_test, nb_classes)
 
-model = resnet.ResNetBuilder.build_resnet_18((img_channels, img_rows, img_cols), nb_classes)
+model = resnet.ResnetBuilder.build_resnet_18((img_channels, img_rows, img_cols), nb_classes)
 
 # Let's train the model using RMSprop
 model.compile(loss='categorical_crossentropy',

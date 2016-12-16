@@ -105,7 +105,7 @@ def bottleneck(nb_filters, init_subsample=(1, 1)):
     return f
 
 
-class ResNetBuilder(object):
+class ResnetBuilder(object):
     @staticmethod
     def build(input_shape, num_outputs, block_fn, repetitions):
         """
@@ -151,27 +151,27 @@ class ResNetBuilder(object):
 
     @staticmethod
     def build_resnet_18(input_shape, num_outputs):
-        return ResNetBuilder.build(input_shape, num_outputs, basic_block, [2, 2, 2, 2])
+        return ResnetBuilder.build(input_shape, num_outputs, basic_block, [2, 2, 2, 2])
 
     @staticmethod
     def build_resnet_34(input_shape, num_outputs):
-        return ResNetBuilder.build(input_shape, num_outputs, basic_block, [3, 4, 6, 3])
+        return ResnetBuilder.build(input_shape, num_outputs, basic_block, [3, 4, 6, 3])
 
     @staticmethod
     def build_resnet_50(input_shape, num_outputs):
-        return ResNetBuilder.build(input_shape, num_outputs, bottleneck, [3, 4, 6, 3])
+        return ResnetBuilder.build(input_shape, num_outputs, bottleneck, [3, 4, 6, 3])
 
     @staticmethod
     def build_resnet_101(input_shape, num_outputs):
-        return ResNetBuilder.build(input_shape, num_outputs, bottleneck, [3, 4, 23, 3])
+        return ResnetBuilder.build(input_shape, num_outputs, bottleneck, [3, 4, 23, 3])
 
     @staticmethod
     def build_resnet_152(input_shape, num_outputs):
-        return ResNetBuilder.build(input_shape, num_outputs, bottleneck, [3, 8, 36, 3])
+        return ResnetBuilder.build(input_shape, num_outputs, bottleneck, [3, 8, 36, 3])
 
 
 def main():
-    model = ResNetBuilder.build_resnet_18((3, 224, 224), 1000)
+    model = ResnetBuilder.build_resnet_18((3, 224, 224), 1000)
     model.compile(loss="categorical_crossentropy", optimizer="sgd")
     model.summary()
 
