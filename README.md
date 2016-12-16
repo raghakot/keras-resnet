@@ -1,4 +1,7 @@
 # keras-resnet
+[![Build Status](https://travis-ci.org/raghakot/keras-resnet.svg?branch=master)](https://travis-ci.org/raghakot/keras-resnet)
+[![license](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000)](https://github.com/raghakot/keras-resnet/blob/master/LICENSE)
+
 Residual networks implementation using Keras-1.0 functional API. 
 
 ### The original articles
