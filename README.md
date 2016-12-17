@@ -2,7 +2,8 @@
 [![Build Status](https://travis-ci.org/raghakot/keras-resnet.svg?branch=master)](https://travis-ci.org/raghakot/keras-resnet)
 [![license](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000)](https://github.com/raghakot/keras-resnet/blob/master/LICENSE)
 
-Residual networks implementation using Keras-1.0 functional API. 
+Residual networks implementation using Keras-1.0 functional API, that works with 
+both theano/tensorflow backend and 'th'/'tf' image dim ordering.
 
 ### The original articles
  * [Deep Residual Learning for Image Recognition](http://arxiv.org/abs/1512.03385) (the 2015 ImageNet competition winner)
