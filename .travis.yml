@@ -34,6 +34,7 @@ install:
   - pip install pytest-cov python-coveralls pytest-xdist coverage==3.7.1 #we need this version of coverage for coveralls.io to work
   - pip install pep8 pytest-pep8
   - pip install git+git://github.com/Theano/Theano.git
+  - pip install keras
 
   # install PIL for preprocessing tests
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
@@ -41,8 +42,6 @@ install:
     elif [[ "$TRAVIS_PYTHON_VERSION" == "3.4" ]]; then
       conda install Pillow;
     fi
-
-  - python setup.py install
 
   # install TensorFlow
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
