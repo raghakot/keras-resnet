@@ -14,15 +14,6 @@ from keras.layers.convolutional import (
 from keras.layers.normalization import BatchNormalization
 from keras import backend as K
 
-if K.image_dim_ordering() == 'tf':
-    ROW_AXIS = 1
-    COL_AXIS = 2
-    CHANNEL_AXIS = 3
-else:
-    CHANNEL_AXIS = 1
-    ROW_AXIS = 2
-    COL_AXIS = 3
-
 
 # Helper to build a conv -> BN -> relu block
 def _conv_bn_relu(nb_filter, nb_row, nb_col, subsample=(1, 1)):
@@ -105,6 +96,20 @@ def bottleneck(nb_filters, init_subsample=(1, 1)):
     return f
 
 
+def handle_dim_ordering():
+    global ROW_AXIS
+    global COL_AXIS
+    global CHANNEL_AXIS
+    if K.image_dim_ordering() == 'tf':
+        ROW_AXIS = 1
+        COL_AXIS = 2
+        CHANNEL_AXIS = 3
+    else:
+        CHANNEL_AXIS = 1
+        ROW_AXIS = 2
+        COL_AXIS = 3
+
+
 class ResnetBuilder(object):
     @staticmethod
     def build(input_shape, num_outputs, block_fn, repetitions):
@@ -122,6 +127,7 @@ class ResnetBuilder(object):
 
         :return: The keras model.
         """
+        handle_dim_ordering()
         if len(input_shape) != 3:
             raise Exception("Input shape should be a tuple (nb_channels, nb_rows, nb_cols)")
 
