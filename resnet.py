@@ -12,28 +12,48 @@ from keras.layers.convolutional import (
     AveragePooling2D
 )
 from keras.layers.normalization import BatchNormalization
+from keras.regularizers import l2
 from keras import backend as K
+
+# Helper to build a BN -> relu block
+def _bn_relu(input):
+    norm = BatchNormalization(mode=0, axis=CHANNEL_AXIS)(input)
+    return Activation("relu")(norm)
 
 
 # Helper to build a conv -> BN -> relu block
-def _conv_bn_relu(nb_filter, nb_row, nb_col, subsample=(1, 1)):
+def _conv_bn_relu(**conv_params):
+    nb_filter = conv_params["nb_filter"]
+    nb_row = conv_params["nb_row"]
+    nb_col = conv_params["nb_col"]
+    subsample = conv_params.setdefault("subsample", (1,1))
+    init = conv_params.setdefault("init", "he_normal")
+    border_mode = conv_params.setdefault("border_mode", "same")
+    W_regularizer = conv_params.setdefault("W_regularizer", l2(1.e-4))
+
     def f(input):
         conv = Convolution2D(nb_filter=nb_filter, nb_row=nb_row, nb_col=nb_col, subsample=subsample,
-                             init="he_normal", border_mode="same")(input)
-        norm = BatchNormalization(mode=0, axis=CHANNEL_AXIS)(conv)
-        return Activation("relu")(norm)
+                             init=init, border_mode=border_mode, W_regularizer=W_regularizer)(input)
+        return _bn_relu(conv)
 
     return f
 
 
 # Helper to build a BN -> relu -> conv block
 # This is an improved scheme proposed in http://arxiv.org/pdf/1603.05027v2.pdf
-def _bn_relu_conv(nb_filter, nb_row, nb_col, subsample=(1, 1)):
+def _bn_relu_conv(**conv_params):
+    nb_filter = conv_params["nb_filter"]
+    nb_row = conv_params["nb_row"]
+    nb_col = conv_params["nb_col"]
+    subsample = conv_params.setdefault("subsample", (1,1))
+    init = conv_params.setdefault("init", "he_normal")
+    border_mode = conv_params.setdefault("border_mode", "same")
+    W_regularizer = conv_params.setdefault("W_regularizer", l2(1.e-4))
+
     def f(input):
-        norm = BatchNormalization(mode=0, axis=CHANNEL_AXIS)(input)
-        activation = Activation("relu")(norm)
+        activation = _bn_relu(input)
         return Convolution2D(nb_filter=nb_filter, nb_row=nb_row, nb_col=nb_col, subsample=subsample,
-                             init="he_normal", border_mode="same")(activation)
+                             init=init, border_mode=border_mode, W_regularizer=W_regularizer)(activation)
 
     return f
 
@@ -53,19 +73,24 @@ def _shortcut(input, residual):
         shortcut = Convolution2D(nb_filter=residual._keras_shape[CHANNEL_AXIS],
                                  nb_row=1, nb_col=1,
                                  subsample=(stride_width, stride_height),
-                                 init="he_normal", border_mode="valid")(input)
+                                 init="he_normal", border_mode="valid",
+                                 W_regularizer=l2(0.0001))(input)
 
     return merge([shortcut, residual], mode="sum")
 
 
 # Builds a residual block with repeating bottleneck blocks.
-def _residual_block(block_function, nb_filters, repetitions, is_first_layer=False):
+def _residual_block(block_function, nb_filter, repetitions, is_first_layer=False):
     def f(input):
         for i in range(repetitions):
             init_subsample = (1, 1)
             if i == 0 and not is_first_layer:
                 init_subsample = (2, 2)
-            input = block_function(nb_filters=nb_filters, init_subsample=init_subsample)(input)
+            input = block_function(
+                    nb_filter=nb_filter,
+                    init_subsample=init_subsample,
+                    is_first_block_of_first_layer=(is_first_layer and i==0)
+                )(input)
         return input
 
     return f
@@ -74,10 +99,20 @@ def _residual_block(block_function, nb_filters, repetitions, is_first_layer=Fals
 # Basic 3 X 3 convolution blocks.
 # Use for resnet with layers <= 34
 # Follows improved proposed scheme in http://arxiv.org/pdf/1603.05027v2.pdf
-def basic_block(nb_filters, init_subsample=(1, 1)):
+def basic_block(nb_filter, init_subsample=(1, 1), is_first_block_of_first_layer=False):
     def f(input):
-        conv1 = _bn_relu_conv(nb_filters, 3, 3, subsample=init_subsample)(input)
-        residual = _bn_relu_conv(nb_filters, 3, 3)(conv1)
+
+        if is_first_block_of_first_layer:
+            # don't repeat bn->relu since we just did bn->relu->maxpool
+            conv1 = Convolution2D(nb_filter=nb_filter,
+                                 nb_row=3, nb_col=3,
+                                 subsample=init_subsample,
+                                 init="he_normal", border_mode="same",
+                                 W_regularizer=l2(0.0001))(input)
+        else:
+            conv1 = _bn_relu_conv(nb_filter=nb_filter, nb_row=3, nb_col=3, subsample=init_subsample)(input)
+
+        residual = _bn_relu_conv(nb_filter=nb_filter, nb_row=3, nb_col=3)(conv1)
         return _shortcut(input, residual)
 
     return f
@@ -85,12 +120,22 @@ def basic_block(nb_filters, init_subsample=(1, 1)):
 
 # Bottleneck architecture for > 34 layer resnet.
 # Follows improved proposed scheme in http://arxiv.org/pdf/1603.05027v2.pdf
-# Returns a final conv layer of nb_filters * 4
-def bottleneck(nb_filters, init_subsample=(1, 1)):
+# Returns a final conv layer of nb_filter * 4
+def bottleneck(nb_filter, init_subsample=(1, 1), is_first_block_of_first_layer=False):
     def f(input):
-        conv_1_1 = _bn_relu_conv(nb_filters, 1, 1, subsample=init_subsample)(input)
-        conv_3_3 = _bn_relu_conv(nb_filters, 3, 3)(conv_1_1)
-        residual = _bn_relu_conv(nb_filters * 4, 1, 1)(conv_3_3)
+
+        if is_first_block_of_first_layer:
+            # don't repeat bn->relu since we just did bn->relu->maxpool
+            conv_1_1 = Convolution2D(nb_filter=nb_filter,
+                                 nb_row=1, nb_col=1,
+                                 subsample=init_subsample,
+                                 init="he_normal", border_mode="same",
+                                 W_regularizer=l2(0.0001))(input)
+        else:
+            conv_1_1 = _bn_relu_conv(nb_filter=nb_filter, nb_row=1, nb_col=1, subsample=init_subsample)(input)
+
+        conv_3_3 = _bn_relu_conv(nb_filter=nb_filter, nb_row=3, nb_col=3)(conv_1_1)
+        residual = _bn_relu_conv(nb_filter=nb_filter * 4, nb_row=1, nb_col=1)(conv_3_3)
         return _shortcut(input, residual)
 
     return f
@@ -140,10 +185,13 @@ class ResnetBuilder(object):
         pool1 = MaxPooling2D(pool_size=(3, 3), strides=(2, 2), border_mode="same")(conv1)
 
         block = pool1
-        nb_filters = 64
+        nb_filter = 64
         for i, r in enumerate(repetitions):
-            block = _residual_block(block_fn, nb_filters=nb_filters, repetitions=r, is_first_layer=i == 0)(block)
-            nb_filters *= 2
+            block = _residual_block(block_fn, nb_filter=nb_filter, repetitions=r, is_first_layer=(i == 0))(block)
+            nb_filter *= 2
+
+        # Last activation
+        block = _bn_relu(block)
 
         # Classifier block
         pool2 = AveragePooling2D(pool_size=(block._keras_shape[ROW_AXIS],
