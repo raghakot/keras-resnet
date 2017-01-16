@@ -31,9 +31,6 @@ img_channels = 3
 
 # The data, shuffled and split between train and test sets:
 (X_train, y_train), (X_test, y_test) = cifar10.load_data()
-print('X_train shape:', X_train.shape)
-print(X_train.shape[0], 'train samples')
-print(X_test.shape[0], 'test samples')
 
 # Convert class vectors to binary class matrices.
 Y_train = np_utils.to_categorical(y_train, nb_classes)
@@ -61,7 +58,7 @@ if not data_augmentation:
               nb_epoch=nb_epoch,
               validation_data=(X_test, Y_test),
               shuffle=True,
-              callbacks = [lr_reducer, early_stopper, csv_logger])
+              callbacks=[lr_reducer, early_stopper, csv_logger])
 else:
     print('Using real-time data augmentation.')
     # This will do preprocessing and realtime data augmentation:
@@ -85,5 +82,5 @@ else:
     model.fit_generator(datagen.flow(X_train, Y_train, batch_size=batch_size),
                         samples_per_epoch=X_train.shape[0],
                         validation_data=(X_test, Y_test),
-                        nb_epoch=nb_epoch, verbose=1,
-                        callbacks = [lr_reducer, early_stopper, csv_logger])
+                        nb_epoch=nb_epoch, verbose=1, max_q_size=100,
+                        callbacks=[lr_reducer, early_stopper, csv_logger])

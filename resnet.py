@@ -15,18 +15,21 @@ from keras.layers.normalization import BatchNormalization
 from keras.regularizers import l2
 from keras import backend as K
 
-# Helper to build a BN -> relu block
+
 def _bn_relu(input):
+    """Helper to build a BN -> relu block
+    """
     norm = BatchNormalization(mode=0, axis=CHANNEL_AXIS)(input)
     return Activation("relu")(norm)
 
 
-# Helper to build a conv -> BN -> relu block
 def _conv_bn_relu(**conv_params):
+    """Helper to build a conv -> BN -> relu block
+    """
     nb_filter = conv_params["nb_filter"]
     nb_row = conv_params["nb_row"]
     nb_col = conv_params["nb_col"]
-    subsample = conv_params.setdefault("subsample", (1,1))
+    subsample = conv_params.setdefault("subsample", (1, 1))
     init = conv_params.setdefault("init", "he_normal")
     border_mode = conv_params.setdefault("border_mode", "same")
     W_regularizer = conv_params.setdefault("W_regularizer", l2(1.e-4))
@@ -39,9 +42,10 @@ def _conv_bn_relu(**conv_params):
     return f
 
 
-# Helper to build a BN -> relu -> conv block
-# This is an improved scheme proposed in http://arxiv.org/pdf/1603.05027v2.pdf
 def _bn_relu_conv(**conv_params):
+    """Helper to build a BN -> relu -> conv block.
+    This is an improved scheme proposed in http://arxiv.org/pdf/1603.05027v2.pdf
+    """
     nb_filter = conv_params["nb_filter"]
     nb_row = conv_params["nb_row"]
     nb_col = conv_params["nb_col"]
@@ -58,8 +62,9 @@ def _bn_relu_conv(**conv_params):
     return f
 
 
-# Adds a shortcut between input and residual block and merges them with "sum"
 def _shortcut(input, residual):
+    """Adds a shortcut between input and residual block and merges them with "sum"
+    """
     # Expand channels of shortcut to match residual.
     # Stride appropriately to match residual (width, height)
     # Should be int if network architecture is correctly configured.
@@ -79,8 +84,9 @@ def _shortcut(input, residual):
     return merge([shortcut, residual], mode="sum")
 
 
-# Builds a residual block with repeating bottleneck blocks.
 def _residual_block(block_function, nb_filter, repetitions, is_first_layer=False):
+    """Builds a residual block with repeating bottleneck blocks.
+    """
     def f(input):
         for i in range(repetitions):
             init_subsample = (1, 1)
@@ -89,17 +95,17 @@ def _residual_block(block_function, nb_filter, repetitions, is_first_layer=False
             input = block_function(
                     nb_filter=nb_filter,
                     init_subsample=init_subsample,
-                    is_first_block_of_first_layer=(is_first_layer and i==0)
+                    is_first_block_of_first_layer=(is_first_layer and i == 0)
                 )(input)
         return input
 
     return f
 
 
-# Basic 3 X 3 convolution blocks.
-# Use for resnet with layers <= 34
-# Follows improved proposed scheme in http://arxiv.org/pdf/1603.05027v2.pdf
 def basic_block(nb_filter, init_subsample=(1, 1), is_first_block_of_first_layer=False):
+    """Basic 3 X 3 convolution blocks for use on resnets with layers <= 34.
+    Follows improved proposed scheme in http://arxiv.org/pdf/1603.05027v2.pdf
+    """
     def f(input):
 
         if is_first_block_of_first_layer:
@@ -118,10 +124,12 @@ def basic_block(nb_filter, init_subsample=(1, 1), is_first_block_of_first_layer=
     return f
 
 
-# Bottleneck architecture for > 34 layer resnet.
-# Follows improved proposed scheme in http://arxiv.org/pdf/1603.05027v2.pdf
-# Returns a final conv layer of nb_filter * 4
 def bottleneck(nb_filter, init_subsample=(1, 1), is_first_block_of_first_layer=False):
+    """Bottleneck architecture for > 34 layer resnet.
+    Follows improved proposed scheme in http://arxiv.org/pdf/1603.05027v2.pdf
+
+    :return: A final conv layer of nb_filter * 4
+    """
     def f(input):
 
         if is_first_block_of_first_layer:
@@ -158,8 +166,7 @@ def handle_dim_ordering():
 class ResnetBuilder(object):
     @staticmethod
     def build(input_shape, num_outputs, block_fn, repetitions):
-        """
-        Builds a custom ResNet like architecture.
+        """Builds a custom ResNet like architecture.
         :param input_shape: The input shape in the form (nb_channels, nb_rows, nb_cols)
 
         :param num_outputs: The number of outputs at final softmax layer
