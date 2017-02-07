@@ -1,3 +1,4 @@
+import six
 from keras.models import Model
 from keras.layers import (
     Input,
@@ -128,7 +129,8 @@ def bottleneck(nb_filter, init_subsample=(1, 1), is_first_block_of_first_layer=F
     """Bottleneck architecture for > 34 layer resnet.
     Follows improved proposed scheme in http://arxiv.org/pdf/1603.05027v2.pdf
 
-    :return: A final conv layer of nb_filter * 4
+    Returns:
+        A final conv layer of nb_filter * 4
     """
     def f(input):
 
@@ -149,7 +151,7 @@ def bottleneck(nb_filter, init_subsample=(1, 1), is_first_block_of_first_layer=F
     return f
 
 
-def handle_dim_ordering():
+def _handle_dim_ordering():
     global ROW_AXIS
     global COL_AXIS
     global CHANNEL_AXIS
@@ -163,29 +165,41 @@ def handle_dim_ordering():
         COL_AXIS = 3
 
 
+def _get_block(identifier):
+    if isinstance(identifier, six.string_types):
+        res = globals().get(identifier)
+        if not res:
+            raise ValueError('Invalid {}'.format(identifier))
+        return res
+    return identifier
+
+
 class ResnetBuilder(object):
     @staticmethod
     def build(input_shape, num_outputs, block_fn, repetitions):
         """Builds a custom ResNet like architecture.
-        :param input_shape: The input shape in the form (nb_channels, nb_rows, nb_cols)
 
-        :param num_outputs: The number of outputs at final softmax layer
+        Args:
+            input_shape: The input shape in the form (nb_channels, nb_rows, nb_cols)
+            num_outputs: The number of outputs at final softmax layer
+            block_fn: The block function to use. This is either `basic_block` or `bottleneck`.
+                The original paper used basic_block for layers < 50
+            repetitions: Number of repetitions of various block units.
+                At each block unit, the number of filters are doubled and the input size is halved
 
-        :param block_fn: The block function to use. This is either :func:`basic_block` or :func:`bottleneck`.
-        The original paper used basic_block for layers < 50
-
-        :param repetitions: Number of repetitions of various block units.
-        At each block unit, the number of filters are doubled and the input size is halved
-
-        :return: The keras model.
+        Returns:
+            The keras `Model`.
         """
-        handle_dim_ordering()
+        _handle_dim_ordering()
         if len(input_shape) != 3:
             raise Exception("Input shape should be a tuple (nb_channels, nb_rows, nb_cols)")
 
         # Permute dimension order if necessary
         if K.image_dim_ordering() == 'tf':
             input_shape = (input_shape[1], input_shape[2], input_shape[0])
+
+        # Load function from str if needed.
+        block_fn = _get_block(block_fn)
 
         input = Input(shape=input_shape)
         conv1 = _conv_bn_relu(nb_filter=64, nb_row=7, nb_col=7, subsample=(2, 2))(input)
@@ -232,14 +246,3 @@ class ResnetBuilder(object):
     @staticmethod
     def build_resnet_152(input_shape, num_outputs):
         return ResnetBuilder.build(input_shape, num_outputs, bottleneck, [3, 8, 36, 3])
-
-
-def main():
-    model = ResnetBuilder.build_resnet_18((3, 224, 224), 1000)
-    model.compile(loss="categorical_crossentropy", optimizer="sgd")
-    model.summary()
-
-
-if __name__ == '__main__':
-    main()
-
