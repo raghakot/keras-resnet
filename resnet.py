@@ -1,3 +1,5 @@
+from __future__ import division
+
 import six
 from keras.models import Model
 from keras.layers import (
@@ -20,7 +22,7 @@ from keras import backend as K
 def _bn_relu(input):
     """Helper to build a BN -> relu block
     """
-    norm = BatchNormalization(mode=0, axis=CHANNEL_AXIS)(input)
+    norm = BatchNormalization(axis=CHANNEL_AXIS)(input)
     return Activation("relu")(norm)
 
 
@@ -69,14 +71,16 @@ def _shortcut(input, residual):
     # Expand channels of shortcut to match residual.
     # Stride appropriately to match residual (width, height)
     # Should be int if network architecture is correctly configured.
-    stride_width = input._keras_shape[ROW_AXIS] // residual._keras_shape[ROW_AXIS]
-    stride_height = input._keras_shape[COL_AXIS] // residual._keras_shape[COL_AXIS]
-    equal_channels = residual._keras_shape[CHANNEL_AXIS] == input._keras_shape[CHANNEL_AXIS]
+    input_shape = K.int_shape(input)
+    residual_shape = K.int_shape(residual)
+    stride_width = int(round(input_shape[ROW_AXIS] / residual_shape[ROW_AXIS]))
+    stride_height = int(round(input_shape[COL_AXIS] / residual_shape[COL_AXIS]))
+    equal_channels = input_shape[CHANNEL_AXIS] == residual_shape[CHANNEL_AXIS]
 
     shortcut = input
     # 1 X 1 conv if shape is different. Else identity.
     if stride_width > 1 or stride_height > 1 or not equal_channels:
-        shortcut = Convolution2D(nb_filter=residual._keras_shape[CHANNEL_AXIS],
+        shortcut = Convolution2D(nb_filter=residual_shape[CHANNEL_AXIS],
                                  nb_row=1, nb_col=1,
                                  subsample=(stride_width, stride_height),
                                  init="he_normal", border_mode="valid",
@@ -93,11 +97,8 @@ def _residual_block(block_function, nb_filter, repetitions, is_first_layer=False
             init_subsample = (1, 1)
             if i == 0 and not is_first_layer:
                 init_subsample = (2, 2)
-            input = block_function(
-                    nb_filter=nb_filter,
-                    init_subsample=init_subsample,
-                    is_first_block_of_first_layer=(is_first_layer and i == 0)
-                )(input)
+            input = block_function(nb_filter=nb_filter, init_subsample=init_subsample,
+                                   is_first_block_of_first_layer=(is_first_layer and i == 0))(input)
         return input
 
     return f
@@ -117,7 +118,8 @@ def basic_block(nb_filter, init_subsample=(1, 1), is_first_block_of_first_layer=
                                  init="he_normal", border_mode="same",
                                  W_regularizer=l2(0.0001))(input)
         else:
-            conv1 = _bn_relu_conv(nb_filter=nb_filter, nb_row=3, nb_col=3, subsample=init_subsample)(input)
+            conv1 = _bn_relu_conv(nb_filter=nb_filter, nb_row=3, nb_col=3,
+                                  subsample=init_subsample)(input)
 
         residual = _bn_relu_conv(nb_filter=nb_filter, nb_row=3, nb_col=3)(conv1)
         return _shortcut(input, residual)
@@ -142,7 +144,8 @@ def bottleneck(nb_filter, init_subsample=(1, 1), is_first_block_of_first_layer=F
                                  init="he_normal", border_mode="same",
                                  W_regularizer=l2(0.0001))(input)
         else:
-            conv_1_1 = _bn_relu_conv(nb_filter=nb_filter, nb_row=1, nb_col=1, subsample=init_subsample)(input)
+            conv_1_1 = _bn_relu_conv(nb_filter=nb_filter, nb_row=1, nb_col=1,
+                                     subsample=init_subsample)(input)
 
         conv_3_3 = _bn_relu_conv(nb_filter=nb_filter, nb_row=3, nb_col=3)(conv_1_1)
         residual = _bn_relu_conv(nb_filter=nb_filter * 4, nb_row=1, nb_col=1)(conv_3_3)
@@ -218,8 +221,8 @@ class ResnetBuilder(object):
         block_output = Activation("relu")(block_norm)
 
         # Classifier block
-        pool2 = AveragePooling2D(pool_size=(block._keras_shape[ROW_AXIS],
-                                            block._keras_shape[COL_AXIS]),
+        block_shape = K.int_shape(block)
+        pool2 = AveragePooling2D(pool_size=(block_shape[ROW_AXIS], block_shape[COL_AXIS]),
                                  strides=(1, 1))(block_output)
         flatten1 = Flatten()(pool2)
         dense = Dense(output_dim=num_outputs, init="he_normal", activation="softmax")(flatten1)
