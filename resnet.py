@@ -217,13 +217,10 @@ class ResnetBuilder(object):
         # Last activation
         block = _bn_relu(block)
 
-        block_norm = BatchNormalization(mode=0, axis=CHANNEL_AXIS)(block)
-        block_output = Activation("relu")(block_norm)
-
         # Classifier block
         block_shape = K.int_shape(block)
         pool2 = AveragePooling2D(pool_size=(block_shape[ROW_AXIS], block_shape[COL_AXIS]),
-                                 strides=(1, 1))(block_output)
+                                 strides=(1, 1))(block)
         flatten1 = Flatten()(pool2)
         dense = Dense(output_dim=num_outputs, init="he_normal", activation="softmax")(flatten1)
 
