@@ -147,7 +147,7 @@ def bottleneck(filters, init_strides=(1, 1), is_first_block_of_first_layer=False
                               kernel_initializer="he_normal",
                               kernel_regularizer=l2(1e-4))(input)
         else:
-            conv_1_1 = _bn_relu_conv(filters=filters, kernel_size=(3, 3),
+            conv_1_1 = _bn_relu_conv(filters=filters, kernel_size=(1, 1),
                                      strides=init_strides)(input)
 
         conv_3_3 = _bn_relu_conv(filters=filters, kernel_size=(3, 3))(conv_1_1)
